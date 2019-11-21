@@ -9,11 +9,11 @@ import System.Environment (getArgs)
 main :: IO ()
 main =
     do
-        (file : _) <- getArgs
+        (file : _)  <- getArgs
         putStrLn $ "Using classfile " ++ (show file)
-        bs      <- readClassBytes file
-        cpsize  <- pure $ u2ToInt $ drop 8 bs
-        infos   <- pure $ readConstantInfos cpsize $ drop 10 bs
+        bs          <- readClassBytes file
+        cpsize      <- pure $ u2ToInt $ drop 8 bs
+        infos       <- pure $ readConstantInfos cpsize $ drop 10 bs
         mapM_ print infos
         
 

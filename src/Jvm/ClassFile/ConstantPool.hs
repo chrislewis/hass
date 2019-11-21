@@ -1,5 +1,6 @@
 module Jvm.ClassFile.ConstantPool where
 
+import Data.Map.Strict as Map hiding (drop, map, take)
 import Data.Word (Word8)
 import Jvm.ClassFile
 
@@ -65,7 +66,11 @@ readRefInfo f w = (w', f c n)
           c     = u2ToInt w
 
 readConstantInfos :: Int -> [Word8] -> [ConstantInfo]
-readConstantInfos s b
-    | s > 1     = c : (readConstantInfos (s - 1) b')
-    | otherwise = []
-    where (b', c) = readConstantInfo b
+readConstantInfos s b = Map.elems $ readConstantInfoMap s b
+
+readConstantInfoMap :: Int -> [Word8] -> Map Int ConstantInfo
+readConstantInfoMap s b = go 1 b Map.empty
+    where go i b m
+            | i < s     = go (i + 1) b' (Map.insert i c m)
+            | otherwise = m
+            where (b', c) = readConstantInfo b
