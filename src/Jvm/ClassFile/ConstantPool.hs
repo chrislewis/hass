@@ -47,7 +47,7 @@ readUtf8Info w = (w', Utf8Info s)
           s     = map (toEnum . fromIntegral) b
 
 readIndexedInfo :: (Int -> ConstantInfo) -> [Word8] -> ([Word8], ConstantInfo)
-readIndexedInfo f w = (w', ClassInfo i)
+readIndexedInfo f w = (w', f i)
     where w'    = drop 2 w
           i     = u2ToInt w
 
