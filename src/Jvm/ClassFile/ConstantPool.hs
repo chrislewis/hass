@@ -29,7 +29,7 @@ data ConstantInfo =
   | MethodRefInfo Int Int
   | InterfaceMethodRefInfo Int Int
   | StringInfo Int
-  | Utf8Info String
+  | Utf8Info Int String
   | NameAndTypeInfo Int Int
   | IntegerInfo Int
   | FloatInfo Int
@@ -40,11 +40,12 @@ data ConstantInfo =
   | InvokeDynamicInfo Int Int deriving Show
 
 readUtf8Info :: [Word8] -> ([Word8], ConstantInfo)
-readUtf8Info w = (w', Utf8Info s)
-    where w'    = drop (l + 2) w
+readUtf8Info w = (w', Utf8Info l s)
+    where w'    = drop l x
           l     = u2ToInt w
-          b     = take l $ drop 2 w
           s     = map (toEnum . fromIntegral) b
+          b     = take l x
+          x     = drop 2 w
 
 readIndexedInfo :: (Int -> ConstantInfo) -> [Word8] -> ([Word8], ConstantInfo)
 readIndexedInfo f w = (w', f i)
@@ -61,9 +62,10 @@ readNameAndTypeInfo         = readRefInfo NameAndTypeInfo
 
 readRefInfo :: (Int -> Int -> ConstantInfo) -> [Word8] -> ([Word8], ConstantInfo)
 readRefInfo f w = (w', f c n)
-    where w'    = drop 4 w
-          n     = u2ToInt $ drop 2 w
+    where w'    = drop 2 x
           c     = u2ToInt w
+          n     = u2ToInt x
+          x     = drop 2 w
 
 readConstantInfos :: Int -> [Word8] -> [ConstantInfo]
 readConstantInfos s b = Map.elems $ readConstantInfoMap s b
