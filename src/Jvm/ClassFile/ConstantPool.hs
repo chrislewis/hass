@@ -1,12 +1,12 @@
 module Jvm.ClassFile.ConstantPool where
 
-import Data.Map.Strict as Map hiding (drop, map, take)
+import Data.Map.Strict as Map
 import Data.Word (Word8)
 import Jvm.ClassFile
 
 -- https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.4-140
 readConstantInfo :: [Word8] -> ([Word8], ConstantInfo)
-readConstantInfo b = r $ drop 1 b
+readConstantInfo b = r $ Prelude.drop 1 b
     where r = case u1ToInt b of
                 1   -> readUtf8Info
                 3   -> error "IntegerInfo"
@@ -39,17 +39,26 @@ data ConstantInfo =
   | MethodTypeInfo Int
   | InvokeDynamicInfo Int Int deriving Show
 
+data ConstantEntry =
+    ClassEntry              String Int
+  | FieldRefEntry           String String String Int Int
+  | MethodRefEntry          String String String Int Int
+  | InterfaceMethodRefEntry String String String Int Int
+  | StringEntry             String Int
+  | Utf8Entry               String Int
+  | NameAndTypeEntry        String String Int Int deriving Show
+
 readUtf8Info :: [Word8] -> ([Word8], ConstantInfo)
 readUtf8Info w = (w', Utf8Info l s)
-    where w'    = drop l x
+    where w'    = Prelude.drop l x
           l     = u2ToInt w
-          s     = map (toEnum . fromIntegral) b
-          b     = take l x
-          x     = drop 2 w
+          s     = Prelude.map (toEnum . fromIntegral) b
+          b     = Prelude.take l x
+          x     = Prelude.drop 2 w
 
 readIndexedInfo :: (Int -> ConstantInfo) -> [Word8] -> ([Word8], ConstantInfo)
 readIndexedInfo f w = (w', f i)
-    where w'    = drop 2 w
+    where w'    = Prelude.drop 2 w
           i     = u2ToInt w
 
 readClassInfo   = readIndexedInfo ClassInfo
@@ -60,15 +69,51 @@ readMethodRefInfo           = readRefInfo MethodRefInfo
 readInterfaceMethodRefInfo  = readRefInfo InterfaceMethodRefInfo
 readNameAndTypeInfo         = readRefInfo NameAndTypeInfo
 
+data ConstantPool = ConstantPool Int [ConstantEntry]
+
 readRefInfo :: (Int -> Int -> ConstantInfo) -> [Word8] -> ([Word8], ConstantInfo)
 readRefInfo f w = (w', f c n)
-    where w'    = drop 2 x
+    where w'    = Prelude.drop 2 x
           c     = u2ToInt w
           n     = u2ToInt x
-          x     = drop 2 w
+          x     = Prelude.drop 2 w
 
-readConstantInfos :: Int -> [Word8] -> [ConstantInfo]
-readConstantInfos s b = Map.elems $ readConstantInfoMap s b
+resolveUtf8 :: Maybe ConstantInfo -> String
+resolveUtf8 c = case c of
+    Just (Utf8Info i str)    -> str
+
+resolveNameAndType :: Maybe ConstantInfo -> Map Int ConstantInfo -> (String, String)
+resolveNameAndType i c = case i of
+    Just (NameAndTypeInfo n d)    -> (resolveUtf8 (Map.lookup n c),
+                                      resolveUtf8 (Map.lookup d c))
+
+resolveClass :: Maybe ConstantInfo -> Map Int ConstantInfo -> String
+resolveClass i c = case i of
+    Just (ClassInfo i)    -> resolveUtf8 (Map.lookup i c)
+
+readConstantInfos2 :: Int -> [Word8] -> [ConstantEntry]
+readConstantInfos2 s b = Map.elems $ Map.mapWithKey resolve c
+    where c             = readConstantInfoMap s b
+          resolve idx info  = case info of
+              ClassInfo i                   -> ClassEntry (resolveUtf8 (get i)) i
+              Utf8Info i str                -> Utf8Entry str i
+              StringInfo i                  -> StringEntry (resolveUtf8 (get i)) i
+              FieldRefInfo d n              -> FieldRefEntry klass name desc d n
+                                               where klass          = resolveClass (get d) c
+                                                     (name, desc)   = get2 (get n)
+              MethodRefInfo d n             -> MethodRefEntry klass name desc d n
+                                               where klass          = resolveClass (get d) c
+                                                     (name, desc)   = get2 (get n)
+              InterfaceMethodRefInfo d n    -> InterfaceMethodRefEntry klass name desc d n
+                                               where klass          = resolveClass (get d) c
+                                                     (name, desc)   = get2 (get n)
+              NameAndTypeInfo n d           -> NameAndTypeEntry (resolveUtf8 (get n))
+                                                                    (resolveUtf8 (get d)) n d
+              where get2    = flip resolveNameAndType c
+                    get             = flip Map.lookup c
+
+readConstantPool :: Int -> [Word8] -> ConstantPool
+readConstantPool s b = ConstantPool s (readConstantInfos2 s b)
 
 readConstantInfoMap :: Int -> [Word8] -> Map Int ConstantInfo
 readConstantInfoMap s b = go 1 b Map.empty

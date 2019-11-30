@@ -5,6 +5,7 @@ import Data.Word (Word8)
 import Jvm.ClassFile
 import Jvm.ClassFile.ConstantPool
 import System.Environment (getArgs)
+import UI
 
 main :: IO ()
 main =
@@ -13,9 +14,8 @@ main =
         putStrLn $ "Using classfile " ++ (show file)
         bs          <- readClassBytes file
         cpsize      <- pure $ u2ToInt $ drop 8 bs
-        infos       <- pure $ readConstantInfos cpsize $ drop 10 bs
-        mapM_ print infos
-        
+        pool        <- pure $ readConstantPool cpsize $ drop 10 bs
+        mapM_ putStrLn $ render pool        
 
 -- Read class bytes from a file on the filesystem.
 readClassBytes :: String -> IO [Word8]
